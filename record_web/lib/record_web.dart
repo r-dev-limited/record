@@ -16,9 +16,9 @@ class RecordPluginWeb extends RecordPlatform {
   html.MediaRecorder? _mediaRecorder;
   web_audio.AudioContext? _audioContext;
   web_audio.AnalyserNode? _analyserNode;
-  double maxAmplitude = 0;
+  double maxAmplitude = -160;
 
-  Uint8List dataArray = Uint8List(0);
+  Float32List dataArray = Float32List(0);
   // Media stream get from getUserMedia
   html.MediaStream? _mediaStream;
   // Audio data
@@ -164,7 +164,7 @@ class RecordPluginWeb extends RecordPlatform {
     _analyserNode = _audioContext!.createAnalyser();
     _analyserNode!.fftSize = 2048;
     var bufferLength = _analyserNode!.frequencyBinCount;
-    dataArray = Uint8List(bufferLength ?? 0);
+    dataArray = Float32List(bufferLength ?? 0);
     source.connectNode(_analyserNode! as web_audio.AudioNode);
 
     _updateState(RecordState.record);
@@ -179,13 +179,32 @@ class RecordPluginWeb extends RecordPlatform {
 
   @override
   Future<Amplitude> getAmplitude() async {
-    _analyserNode?.getByteTimeDomainData(dataArray);
-    var mean = dataArray.reduce((a, b) => a + b) / dataArray.length;
-    var amp = 20 * logBase(mean / 32768.0, 10);
-    if (amp < maxAmplitude && amp >= -160) {
-      maxAmplitude = amp;
+    _analyserNode?.getFloatTimeDomainData(dataArray);
+    // Compute average power over the interval.
+    double sumOfSquares = 0.0;
+    for (var i = 0; i < dataArray.length; i++) {
+      sumOfSquares += pow(dataArray[i], 2) as double;
     }
-    return Amplitude(current: amp.toDouble(), max: maxAmplitude);
+    var avgPowerDecibels = 10 * logBase(sumOfSquares / dataArray.length, 10);
+
+    // Compute peak instantaneous power over the interval.
+    double peakInstantaneousPower = 0;
+    for (var i = 0; i < dataArray.length; i++) {
+      var power = pow(dataArray[i], 2) as double;
+      peakInstantaneousPower = max(power, peakInstantaneousPower);
+    }
+    var peakInstantaneousPowerDecibels =
+        10 * logBase(peakInstantaneousPower, 10);
+
+    print(avgPowerDecibels);
+    print(peakInstantaneousPowerDecibels);
+
+    if (peakInstantaneousPowerDecibels > maxAmplitude) {
+      maxAmplitude = peakInstantaneousPowerDecibels;
+    }
+
+    return Amplitude(
+        current: peakInstantaneousPowerDecibels.toDouble(), max: maxAmplitude);
   }
 
   @override
