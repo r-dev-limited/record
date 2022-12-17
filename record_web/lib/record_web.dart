@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:html' as html;
-
+import 'dart:web_audio' as web_audio;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 import 'package:record_platform_interface/record_platform_interface.dart';
 import 'package:record_web/mime_types.dart';
+import 'dart:math';
 
 class RecordPluginWeb extends RecordPlatform {
   static void registerWith(Registrar registrar) {
@@ -13,6 +14,11 @@ class RecordPluginWeb extends RecordPlatform {
 
   // Media recorder object
   html.MediaRecorder? _mediaRecorder;
+  web_audio.AudioContext? _audioContext;
+  web_audio.AnalyserNode? _analyserNode;
+  double maxAmplitude = 0;
+
+  Uint8List dataArray = Uint8List(0);
   // Media stream get from getUserMedia
   html.MediaStream? _mediaStream;
   // Audio data
@@ -27,6 +33,8 @@ class RecordPluginWeb extends RecordPlatform {
     _stateStreamCtrl?.close();
     _resetMediaRecorder();
   }
+
+  double logBase(num x, num base) => log(x) / log(base);
 
   @override
   Future<bool> hasPermission() async {
@@ -151,6 +159,14 @@ class RecordPluginWeb extends RecordPlatform {
     _mediaRecorder?.addEventListener('stop', _onStop);
     _mediaRecorder?.start();
 
+    _audioContext = web_audio.AudioContext();
+    var source = _audioContext!.createMediaStreamSource(stream);
+    _analyserNode = _audioContext!.createAnalyser();
+    _analyserNode!.fftSize = 2048;
+    var bufferLength = _analyserNode!.frequencyBinCount;
+    dataArray = Uint8List(bufferLength ?? 0);
+    source.connectNode(_analyserNode! as web_audio.AudioNode);
+
     _updateState(RecordState.record);
   }
 
@@ -163,8 +179,13 @@ class RecordPluginWeb extends RecordPlatform {
 
   @override
   Future<Amplitude> getAmplitude() async {
-    // TODO how to check amplitude values on web?
-    return Amplitude(current: -160.0, max: -160.0);
+    _analyserNode?.getByteTimeDomainData(dataArray);
+    var mean = dataArray.reduce((a, b) => a + b) / dataArray.length;
+    var amp = 20 * logBase(mean / 32768.0, 10);
+    if (amp < maxAmplitude && amp >= -160) {
+      maxAmplitude = amp;
+    }
+    return Amplitude(current: amp.toDouble(), max: maxAmplitude);
   }
 
   @override
