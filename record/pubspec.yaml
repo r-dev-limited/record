@@ -13,6 +13,10 @@ dependencies:
 
   record_platform_interface: ^0.5.0
   record_web: 
+    git:
+      url: https://github.com/r-dev-limited/record.git
+      path: record_web
+      ref: web_amplitudes
   record_windows:
   record_macos:
   record_linux:
