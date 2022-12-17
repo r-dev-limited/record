@@ -12,12 +12,12 @@ dependencies:
     sdk: flutter
 
   record_platform_interface: ^0.5.0
-  record_web: '>=0.5.0 < 2.0.0'
-  record_windows: '>=0.6.2 < 2.0.0'
-  record_macos: '>=0.2.2 < 2.0.0'
-  record_linux: '>=0.3.3 < 2.0.0'
+  record_web: 
+  record_windows:
+  record_macos:
+  record_linux:
 
-# dependency_overrides:
+#dependency_overrides:
 #   record_platform_interface:
 #     path: ../record_platform_interface
 #   record_web:
